@@ -157,3 +157,19 @@ body {
 .arrow-down-img {
   margin-top: -10px;
 }
+
+#auto-morph-indicator {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 200;
+  background: #42d311;
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-family: sans-serif;
+  font-size: 1rem;
+  opacity: 0.85;
+  display: none;
+  box-shadow: 0 2px 8px #0002;
+}

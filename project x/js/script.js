@@ -48,6 +48,14 @@ let circleRotation = 0; // Only for circle stage
 let hasVisitedCircleMorph = false;
 let previousMorphStage = 0;
 
+// --- Auto-morph variables ---
+let autoMorph = false;
+let autoMorphFrame = 0;
+let autoMorphState = "morph"; // "morph" or "scroll"
+let autoMorphTargetScrolls = 0;
+let autoMorphScrollsDone = 0;
+let autoMorphScrollDir = 1;
+
 const maskTexture = loader.load('images/rounded-mask.png', () => {
 
   for (let i = 0; i < imageCount; i++) {
@@ -236,11 +244,49 @@ const maskTexture = loader.load('images/rounded-mask.png', () => {
       circleRotation = 0;
     }
 
+    // --- Auto-morph logic ---
+    if (autoMorph) {
+    autoMorphFrame++;
+
+    if (autoMorphState === "morph") {
+      // Wait for transitions to finish and a pause
+      let transitionsDone =
+        (morphStage === 0 && circleTransition >= 0.98 && curveTransition >= 0.98 && shrinkTransition <= 0.02) ||
+        (morphStage === 1 && circleTransition <= 0.02 && curveTransition >= 0.98 && shrinkTransition <= 0.02) ||
+        (morphStage === 2 && circleTransition <= 0.02 && curveTransition <= 0.02 && shrinkTransition <= 0.02) ||
+        (morphStage === 3 && circleTransition <= 0.02 && curveTransition <= 0.02 && shrinkTransition >= 0.98);
+
+      if (transitionsDone && autoMorphFrame > 120) { // 2 seconds pause
+        autoMorphTargetScrolls = Math.floor(Math.random() * 6) + 2; // 2-7 scrolls
+        autoMorphScrollsDone = 0;
+        autoMorphScrollDir = Math.random() > 0.5 ? 1 : -1;
+        autoMorphState = "scroll";
+        autoMorphFrame = 0;
+      }
+    } else if (autoMorphState === "scroll") {
+      // Scroll every 30 frames (~2 per second)
+      if (autoMorphFrame % 30 === 0 && autoMorphScrollsDone < autoMorphTargetScrolls) {
+        focusedIndex = (focusedIndex + autoMorphScrollDir + imageCount) % imageCount;
+        autoMorphScrollsDone++;
+      }
+      // After scrolling, morph to next stage
+      if (autoMorphScrollsDone >= autoMorphTargetScrolls) {
+        if (autoMorphFrame > (autoMorphTargetScrolls * 30) + 60) { // 1 second pause after scroll
+          morphStage = (morphStage + 1) % 4;
+          autoMorphState = "morph";
+          autoMorphFrame = 0;
+        }
+      }
+    }
+  }
+  
+
     meshes.forEach((mesh, i) => {
       // Looping offset for infinite carousel/line
       let offset = i - focusedIndex;
       if (offset > imageCount / 2) offset -= imageCount;
       if (offset < -imageCount / 2) offset += imageCount;
+      
 
       const angle = (i / imageCount) * Math.PI * 2;
 
@@ -273,7 +319,13 @@ const maskTexture = loader.load('images/rounded-mask.png', () => {
       if (morphStage === 1 || morphStage === 2) {
         baseScale = largeScale;
       }
-      const hoverScale = mesh.userData.targetScale || 1;
+
+      // Highlight focused image in circle morph
+      let focusBoost = 1;
+      if (morphStage === 0 && i === focusedIndex) {
+        focusBoost = 1.25; // Scale up focused image
+      }
+      const hoverScale = (mesh.userData.targetScale || 1) * focusBoost;
       const scale = baseScale * hoverScale;
 
       // --- No bounce/pulse animation ---
@@ -314,6 +366,11 @@ const maskTexture = loader.load('images/rounded-mask.png', () => {
     wheelMesh.scale.set(1, 1, 1);
     wheelMesh.visible = (morphStage === 0 && circleTransition > 0.99);
 
+    const indicator = document.getElementById('auto-morph-indicator');
+if (indicator) {
+  indicator.style.display = autoMorph ? 'block' : 'none';
+}
+
     // Show/hide instructions overlay based on morphStage and visit flag
     updateInstructionsOverlay();
     renderer.render(scene, camera);
@@ -338,14 +395,47 @@ const maskTexture = loader.load('images/rounded-mask.png', () => {
   }
 
   function updateInstructionsOverlay() {
-  const overlay = document.getElementById('instructions-overlay');
-  if (typeof morphStage !== 'undefined' && morphStage === 1) {
-    showInstructionsOverlay();
-  } else if (typeof morphStage !== 'undefined' && morphStage === 2) {
-    hideInstructionsOverlay();
-  } else {
-    hideInstructionsOverlay();
+    const overlay = document.getElementById('instructions-overlay');
+    if (typeof morphStage !== 'undefined' && morphStage === 1) {
+      showInstructionsOverlay();
+    } else if (typeof morphStage !== 'undefined' && morphStage === 2) {
+      hideInstructionsOverlay();
+    } else {
+      hideInstructionsOverlay();
+    }
   }
-}
 
+});
+
+window.addEventListener('keydown', (event) => {
+  // Prevent default scrolling for arrow keys and spacebar
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(event.key)) {
+    event.preventDefault();
+  }
+
+  if (event.key === "ArrowUp") {
+    morphStage = (morphStage + 1) % 4;
+  } else if (event.key === "ArrowDown") {
+    morphStage = (morphStage + 3) % 4;
+  } else if (event.key === "ArrowRight") {
+    if (morphStage === 0) {
+      // Circle morph: right arrow moves clockwise (decrement index)
+      focusedIndex = (focusedIndex - 1 + imageCount) % imageCount;
+    } else {
+      // Other morphs: right arrow moves to next image (increment index)
+      focusedIndex = (focusedIndex + 1) % imageCount;
+    }
+  } else if (event.key === "ArrowLeft") {
+    if (morphStage === 0) {
+      // Circle morph: left arrow moves counterclockwise (increment index)
+      focusedIndex = (focusedIndex + 1) % imageCount;
+    } else {
+      // Other morphs: left arrow moves to previous image (decrement index)
+      focusedIndex = (focusedIndex - 1 + imageCount) % imageCount;
+    }
+  } else if (event.key === " ") {
+    autoMorph = !autoMorph;
+    autoMorphFrame = 0;
+    autoMorphState = "morph";
+  }
 });
