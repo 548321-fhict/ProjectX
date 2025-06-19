@@ -282,11 +282,21 @@ const maskTexture = loader.load('images/rounded-mask.png', () => {
   
 
     meshes.forEach((mesh, i) => {
-      // Looping offset for infinite carousel/line
-      let offset = i - focusedIndex;
-      if (offset > imageCount / 2) offset -= imageCount;
-      if (offset < -imageCount / 2) offset += imageCount;
-      
+  let offset = i - focusedIndex;
+
+  // Always wrap for infinite scroll
+  if (offset > imageCount / 2) offset -= imageCount;
+  if (offset < -imageCount / 2) offset += imageCount;
+
+  // Identify if the image is jumping far
+  const isJumpingFar = (Math.abs(offset) > imageCount / 2 - 2);
+
+  // Hide only during line morph if jump is large
+  if ((morphStage === 2 || morphStage === 3) && isJumpingFar) {
+    mesh.visible = false;
+  } else {
+    mesh.visible = true;
+  }
 
       const angle = (i / imageCount) * Math.PI * 2;
 
@@ -340,7 +350,6 @@ const maskTexture = loader.load('images/rounded-mask.png', () => {
         y += dir.y * popOut;
       }
 
-      mesh.visible = true;
       mesh.position.lerp(new THREE.Vector3(x, y, 0), 0.15);
       mesh.scale.lerp(new THREE.Vector3(finalScale, finalScale, finalScale), 0.15);
 
